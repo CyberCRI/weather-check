@@ -35,16 +35,18 @@
   (response {:clouds @clouds}))
 
 (defn post-clouds [request]
-  (let [cloud (get-in request [:body "cloud"])]
-    (swap! clouds conj cloud)
+  (let [new-clouds (get-in request [:body "clouds"])]
+    (prn "new-clouds " new-clouds)
+    (swap! clouds concat new-clouds)
     (response {})))
 
 (defroutes site-routes
-  (GET "/" [] loading-page))
+  (GET "/" [] loading-page)
+  (GET "/form" [] loading-page))
 
 (defroutes api-routes
-  (GET "/clouds" [] (wrap-json-response get-clouds))
-  (POST "/clouds" [] (wrap-json-response (wrap-json-body post-clouds))))
+  (GET "/api/clouds" [] (wrap-json-response get-clouds))
+  (POST "/api/clouds" [] (wrap-json-response (wrap-json-body post-clouds))))
 
 (defroutes other-routes
   (resources "/")
