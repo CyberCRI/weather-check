@@ -18,9 +18,15 @@
 
 ; Form page
 (def phrases [
-   "People don't talk to me"
-   "I'm not invited to activities"
-   "I am judged for what I am"
+  "People don't talk to me"
+  "I'm not invited to activities"
+  "I am judged for what I am"
+  "I've been denied an opportunity"
+  "I've been verbally abused"
+  "I've been looked down on"
+  "I'm feeling left out"
+  "I've been teased or mocked"
+  "People give me a mean look"
   ])
 
 (defn row [index label]
@@ -32,21 +38,29 @@
 (def form-template 
   [:div (map-indexed row phrases)])
 
-(defn send-clouds [clouds-state]
+(defn set-outstanding-request [outstanding-request bool]
+  (swap! outstanding-request #(constantly bool)))
+
+(defn send-clouds [clouds-state outstanding-request]
   (let [index-names (keys (filter #(second %) @clouds-state)) ; Get a list of the keys with true values in the state map 
         phrases (map #(nth phrases (js/parseInt (second (string/split % "-")))) index-names) ; Convert names like "index-1" into the corresponding phrase
         clouds {:clouds phrases} 
         clouds-value (clj->js clouds)]
     (.log js/console clouds-value)
-    (POST "/api/clouds" {:params clouds-value :format :json})))
+    (set-outstanding-request outstanding-request true)
+    (POST "/api/clouds" {:params clouds-value 
+                         :format :json 
+                         :handler #(accountant/navigate! "/")
+                         :finally #(set-outstanding-request outstanding-request false)})))
 
 (defn form-page []
-  (let [clouds (atom {})]
+  (let [clouds (atom {})
+        outstanding-request (atom false)]
     (fn []
       [:div [:h2 "Tell us about the weather"]
        [:p "What have you experienced?"]
        [bind-fields form-template clouds]
-       [:button {:on-click #(send-clouds clouds)} "Send the Weather"]])))
+       [:button {:on-click #(send-clouds clouds outstanding-request) :disabled @outstanding-request} "Send the Weather"]])))
 
 
 (defn weather-page []
@@ -66,7 +80,7 @@
   (session/put! :current-page #'form-page))
 
 (secretary/defroute "/weather" []
-  (session/put! :weather-page #'weather-page))
+  (session/put! :current-page #'weather-page))
 
 ;; -------------------------
 ;; Initialize app
