@@ -4,7 +4,8 @@
               [secretary.core :as secretary :include-macros true]
               [accountant.core :as accountant]
               [reagent-forms.core :refer [bind-fields]]
-              [ajax.core :refer [GET POST]]))
+              [ajax.core :refer [GET POST]]
+              [clojure.string :as string]))
 
 ;; -------------------------
 ;; Views
@@ -16,18 +17,25 @@
 
 
 ; Form page
-(defn row [label]
-  [:div
-    [:input {:field :checkbox :id label}]
-    [:label {:for label} label]])
+(def phrases [
+   "People don't talk to me"
+   "I'm not invited to activities"
+   "I am judged for what I am"
+  ])
+
+(defn row [index label]
+  (let [id (str "index-" index)]
+    [:div 
+      [:input {:field :checkbox :id id}]
+      [:label {:for id} label]]))
 
 (def form-template 
-  [:div
-    (row "People don't talk to me")
-    (row "I'm not invited to activities")])
+  [:div (map-indexed row phrases)])
 
 (defn send-clouds [clouds-state]
-  (let [clouds {:clouds (keys (filter #(second %) @clouds-state))} ; Get a list of the keys with true values in the state map 
+  (let [index-names (keys (filter #(second %) @clouds-state)) ; Get a list of the keys with true values in the state map 
+        phrases (map #(nth phrases (js/parseInt (second (string/split % "-")))) index-names) ; Convert names like "index-1" into the corresponding phrase
+        clouds {:clouds phrases} 
         clouds-value (clj->js clouds)]
     (.log js/console clouds-value)
     (POST "/api/clouds" {:params clouds-value :format :json})))
