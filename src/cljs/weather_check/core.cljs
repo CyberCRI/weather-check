@@ -1,5 +1,5 @@
 (ns weather-check.core
-    (:require [reagent.core :as reagent :refer [atom]]
+    (:require [reagent.core :as reagent :refer [atom create-class]]
               [reagent.session :as session]
               [secretary.core :as secretary :include-macros true]
               [accountant.core :as accountant]
@@ -62,10 +62,22 @@
        [bind-fields form-template clouds]
        [:button {:on-click #(send-clouds clouds outstanding-request) :disabled @outstanding-request} "Send the Weather"]])))
 
+(defn cloud [position] 
+  [:object.cloud {:type "image/svg+xml" :data "/images/cloud.svg"
+                  :style {:transform (str "translate(" (first position) "px, " (second position) "px)") }} ])
 
 (defn weather-page []
-  [:div [:h2 "Weather"]])
-
+  (let [cloud-pos (atom [100 200])
+        callback (fn [] (swap! cloud-pos (fn [pos] (update pos 0 #(+ 100 %)))))
+        interval-id (atom nil)]
+    (create-class 
+      {:component-did-mount #(reset! interval-id (js/setInterval callback 1000))
+       :component-will-unmount #(js/clearInterval @interval-id)
+       :reagent-render 
+         (fn [] [:div { :id "weather-container" } 
+            [:h2 "Weather"]
+            [cloud @cloud-pos]])
+       })))
 
 (defn current-page []
   [:div [(session/get :current-page)]])

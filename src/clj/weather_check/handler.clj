@@ -56,7 +56,8 @@
 
 (defroutes site-routes
   (GET "/" [] loading-page)
-  (GET "/form" [] loading-page))
+  (GET "/form" [] loading-page)
+  (GET "/weather" [] loading-page))
 
 (defroutes api-routes
   (GET "/api/state" [] (wrap-json-response get-state))
