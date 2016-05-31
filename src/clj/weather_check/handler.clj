@@ -8,7 +8,11 @@
             [ring.middleware.defaults :refer [site-defaults api-defaults wrap-defaults]]
             [ring.util.response :refer [response]]))
 
-(def clouds (atom []))
+(def state (atom {
+                  ; Number of respondants
+                  :reply-count 0
+                  ; Map of phrases to the number of occurences
+                  :cloud-counts {} })) 
 
 (def mount-target
   [:div#app
@@ -31,13 +35,23 @@
      mount-target
      (include-js "/js/app.js")]))
 
-(defn get-clouds [request]
-  (response {:clouds @clouds}))
+(defn get-state [request]
+  (response @state))
+
+; If the value exists, calls inc on it, or starts with 1 
+(defn safe-inc [x] (inc (or x 0)))
+
+(defn update-state [old-state new-clouds]
+  (-> old-state
+    (update :reply-count inc) ; Increment reply count
+    ; Increment the value of each phrase in the map (will start from 0 if non-existant)
+    (update :cloud-counts 
+       #(reduce (fn [m phrase] (update m phrase safe-inc)) % new-clouds))))
 
 (defn post-clouds [request]
   (let [new-clouds (get-in request [:body "clouds"])]
     (prn "new-clouds " new-clouds)
-    (swap! clouds concat new-clouds)
+    (swap! state update-state new-clouds)
     (response {})))
 
 (defroutes site-routes
@@ -45,7 +59,7 @@
   (GET "/form" [] loading-page))
 
 (defroutes api-routes
-  (GET "/api/clouds" [] (wrap-json-response get-clouds))
+  (GET "/api/state" [] (wrap-json-response get-state))
   (POST "/api/clouds" [] (wrap-json-response (wrap-json-body post-clouds))))
 
 (defroutes other-routes
