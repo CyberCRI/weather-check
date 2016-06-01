@@ -5,7 +5,8 @@
               [accountant.core :as accountant]
               [reagent-forms.core :refer [bind-fields]]
               [ajax.core :refer [GET POST]]
-              [clojure.string :as string]))
+              [clojure.string :as string]
+              [clojure.walk :refer [keywordize-keys stringify-keys]]))
 
 ;; -------------------------
 ;; Views
@@ -71,35 +72,67 @@
   ])
 
 (defn draw-cloud [{:keys [animating position phrase]} cloud] 
-  [:object {:type "image/svg+xml" 
-            :data "/images/cloud.svg"
-            :class (if animating "cloud animating-cloud" "cloud")
-            :style {:transform (str "translate(" (first position) "px, " (second position) "px)") }} ])
+  [:div {:class (if animating "cloud animating-cloud" "cloud")
+         :style {:transform (str "translate(" (first position) "px, " (second position) "px)") }}
+    [:object {:type "image/svg+xml" 
+              :data "/images/cloud.svg"
+              }]
+    [:p phrase]])
 
 (defn draw-clouds [clouds] [:div (for [cloud clouds] ^{:key (:phrase cloud)} [draw-cloud cloud])])
 
-(defn centered-rand [magnitude] (- (rand magnitude) (/ magnitude 2)))
+(defn rand-in-range [x-min x-max] 
+  (let [range (- x-max x-min)]
+    (+ (rand range) x-min)))
+
+; Takes off 300 from the height to avoid clouds moving out of screen
+(defn canvas-size []
+  (let [canvas (.getElementById js/document "weather-container")]
+    [(.-clientWidth canvas) (- (.-clientHeight canvas) 300)]))
+
+(defn clamp [x x-min x-max] (-> x (min x-max) (max x-min)))
+
+(defn rand-starting-pos [canvas-width canvas-height]
+  [(rand-in-range -1200 -400) (rand-in-range (* 0.2 canvas-height) (* 0.8 canvas-height))])
 
 (defn update-clouds [clouds]
-  (let [canvas (.getElementById js/document "weather-container")
-        canvas-width (.-clientWidth canvas)
-        canvas-height (.-clientHeight canvas)]
+  (let [[canvas-width canvas-height] (canvas-size)]
     (for [{[x y] :position :as cloud} clouds]
       ; TODO: get size of cloud
       (if (> x canvas-width)
         ; If out of canvas, restart on the left
         (-> cloud
-          (assoc :position [-400 (rand canvas-height)])
+          (assoc :position (rand-starting-pos canvas-width canvas-height))
           (assoc :animating false))
         ; Otherwise move towards the right with a random vertical 
         (-> cloud
-          (assoc :position [(+ x 50) (+ y (centered-rand 50))])
+          (assoc :position [(+ x 25) (clamp (+ y (rand-in-range -5 5)) 0 canvas-height)])
           (assoc :animating true))))))
 
+; How come the destructuring doesn't work in the function def?
+;(defn make-clouds [{:keys [reply-count cloud-counts]} server-state]
+(defn make-clouds [server-state]
+  (let [{:keys [reply-count cloud-counts]} server-state 
+        [canvas-width canvas-height] (canvas-size)]
+    (js/console.log "cloud-counts" (clj->js cloud-counts))
+    (for [[phrase count] (stringify-keys cloud-counts)]
+      (Cloud. 
+        phrase 
+        (/ count reply-count) ; Importance is the percentage of people who thought it
+        false
+        (rand-starting-pos canvas-width canvas-height)))))
+
 (defn weather-page []
-  (let [clouds (atom [(Cloud. "Hi" 0.5 true [300 100]) (Cloud. "Bye" 0.5 true [100 300])])
+  (let [clouds (atom [])
+        ;clouds (atom [(Cloud. "Hi" 0.5 true [300 100]) (Cloud. "Bye" 0.5 true [100 300])])
         callback #(swap! clouds update-clouds)
         interval-id (atom nil)]
+    (GET "/api/state" {:handler (fn [state] 
+                                  (js/console.log "ajax reply" (clj->js state))
+                                  (reset! clouds (make-clouds (keywordize-keys state)))
+                                  )}) 
+      ;(reset! clouds (make-clouds state)))
+                       ;})
     (create-class 
       {:component-did-mount #(reset! interval-id (js/setInterval callback 1000))
        :component-will-unmount #(js/clearInterval @interval-id)

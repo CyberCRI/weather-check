@@ -55,5 +55,11 @@ a:hover {
   transition-timing-function: linear;
 }
 
+.cloud p {
+  position: absolute;
+  top: 25%;
+  width: 100%;
+  text-align: center;
+}
 
 
