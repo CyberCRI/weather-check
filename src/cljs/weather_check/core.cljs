@@ -62,13 +62,43 @@
        [bind-fields form-template clouds]
        [:button {:on-click #(send-clouds clouds outstanding-request) :disabled @outstanding-request} "Send the Weather"]])))
 
-(defn cloud [position] 
-  [:object.cloud {:type "image/svg+xml" :data "/images/cloud.svg"
-                  :style {:transform (str "translate(" (first position) "px, " (second position) "px)") }} ])
+;;;; Weather page
+(defrecord Cloud 
+  [phrase ; String
+   importance ; Number in [0, 1]
+   animating ; Bool
+   position ; 2D vector
+  ])
+
+(defn draw-cloud [{:keys [animating position phrase]} cloud] 
+  [:object {:type "image/svg+xml" 
+            :data "/images/cloud.svg"
+            :class (if animating "cloud animating-cloud" "cloud")
+            :style {:transform (str "translate(" (first position) "px, " (second position) "px)") }} ])
+
+(defn draw-clouds [clouds] [:div (for [cloud clouds] ^{:key (:phrase cloud)} [draw-cloud cloud])])
+
+(defn centered-rand [magnitude] (- (rand magnitude) (/ magnitude 2)))
+
+(defn update-clouds [clouds]
+  (let [canvas (.getElementById js/document "weather-container")
+        canvas-width (.-clientWidth canvas)
+        canvas-height (.-clientHeight canvas)]
+    (for [{[x y] :position :as cloud} clouds]
+      ; TODO: get size of cloud
+      (if (> x canvas-width)
+        ; If out of canvas, restart on the left
+        (-> cloud
+          (assoc :position [-400 (rand canvas-height)])
+          (assoc :animating false))
+        ; Otherwise move towards the right with a random vertical 
+        (-> cloud
+          (assoc :position [(+ x 50) (+ y (centered-rand 50))])
+          (assoc :animating true))))))
 
 (defn weather-page []
-  (let [cloud-pos (atom [100 200])
-        callback (fn [] (swap! cloud-pos (fn [pos] (update pos 0 #(+ 100 %)))))
+  (let [clouds (atom [(Cloud. "Hi" 0.5 true [300 100]) (Cloud. "Bye" 0.5 true [100 300])])
+        callback #(swap! clouds update-clouds)
         interval-id (atom nil)]
     (create-class 
       {:component-did-mount #(reset! interval-id (js/setInterval callback 1000))
@@ -76,8 +106,7 @@
        :reagent-render 
          (fn [] [:div { :id "weather-container" } 
             [:h2 "Weather"]
-            [cloud @cloud-pos]])
-       })))
+            [draw-clouds @clouds]])})))
 
 (defn current-page []
   [:div [(session/get :current-page)]])
