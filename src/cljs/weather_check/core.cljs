@@ -71,9 +71,10 @@
    position ; 2D vector
   ])
 
-(defn draw-cloud [{:keys [animating position phrase]} cloud] 
+(defn draw-cloud [{:keys [animating position phrase importance]} cloud] 
   [:div {:class (if animating "cloud animating-cloud" "cloud")
-         :style {:transform (str "translate(" (first position) "px, " (second position) "px)") }}
+         :style {:transform (str "translate(" (first position) "px, " (second position) "px)") 
+                 :opacity importance}}
     [:object {:type "image/svg+xml" 
               :data "/images/cloud.svg"
               }]
@@ -93,7 +94,19 @@
 (defn clamp [x x-min x-max] (-> x (min x-max) (max x-min)))
 
 (defn rand-starting-pos [canvas-width canvas-height]
-  [(rand-in-range -1200 -400) (rand-in-range (* 0.2 canvas-height) (* 0.8 canvas-height))])
+  [-400 (rand-in-range (* 0.1 canvas-height) canvas-height)])
+
+(defn make-clouds [{:keys [reply-count cloud-counts]}]
+  (let [[canvas-width canvas-height] (canvas-size)
+        indexed-phrases (map-indexed (fn [index [phrase count]] {:phrase (name phrase) :count count :index (+ index 1)}) cloud-counts)]
+    (prn "indexed-phrases" indexed-phrases)
+    (for [{:keys [phrase count index]} indexed-phrases]
+      (Cloud. 
+        phrase 
+        ; Importance is the proportional to the % of people who thought it
+        (-> count (/ reply-count) (* 2) (clamp 0.5 1))
+        false
+        (assoc (rand-starting-pos canvas-width canvas-height) 0 (* -400 index))))))
 
 (defn update-clouds [clouds]
   (let [[canvas-width canvas-height] (canvas-size)]
@@ -108,19 +121,6 @@
         (-> cloud
           (assoc :position [(+ x 25) (clamp (+ y (rand-in-range -5 5)) 0 canvas-height)])
           (assoc :animating true))))))
-
-; How come the destructuring doesn't work in the function def?
-;(defn make-clouds [{:keys [reply-count cloud-counts]} server-state]
-(defn make-clouds [server-state]
-  (let [{:keys [reply-count cloud-counts]} server-state 
-        [canvas-width canvas-height] (canvas-size)]
-    (js/console.log "cloud-counts" (clj->js cloud-counts))
-    (for [[phrase count] (stringify-keys cloud-counts)]
-      (Cloud. 
-        phrase 
-        (/ count reply-count) ; Importance is the percentage of people who thought it
-        false
-        (rand-starting-pos canvas-width canvas-height)))))
 
 (defn weather-page []
   (let [clouds (atom [])
