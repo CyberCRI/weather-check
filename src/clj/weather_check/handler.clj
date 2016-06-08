@@ -6,7 +6,20 @@
             [config.core :refer [env]]
             [ring.middleware.json :refer [wrap-json-response wrap-json-body]]
             [ring.middleware.defaults :refer [site-defaults api-defaults wrap-defaults]]
-            [ring.util.response :refer [response]]))
+            [ring.util.response :refer [response]]
+            [clojure.java.jdbc :as jdbc]))
+
+(def db {
+  :dbtype "postgresql"
+  :dbname "weather-check"
+  ;:subname "//127.0.0.1:3306/weather-check"
+  ; :user nil
+  ; :password nil
+  })
+
+(jdbc/insert! db :fruit
+  {:name "Apple" :appearance "rosy" :cost 24}
+  {:name "Orange" :appearance "round" :cost 49})
 
 (def state (atom {
                   ; Number of respondants
