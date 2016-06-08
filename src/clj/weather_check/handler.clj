@@ -51,28 +51,29 @@
 ;;; API
 
 (defn create-group [request]
-  (let [group-name (get-in request [:params "name"])
+  (let [group-name (get-in request [:body "name"])
         group-id (apply str (repeatedly 7 #(rand-nth "ABCDEFGHIJKLMOPQRSTUVWXYZ")))]
     (jdbc/insert! db :groups { :group_id group-id :name group-name })
     (response {:id group-id})))
 
-(defn get-state [request]
+(defn get-counts [request]
   (response @state))
 
-; If the value exists, calls inc on it, or starts with 1 
-(defn safe-inc [x] (inc (or x 0)))
+; ; If the value exists, calls inc on it, or starts with 1 
+; (defn safe-inc [x] (inc (or x 0)))
 
-(defn update-state [old-state new-clouds]
-  (-> old-state
-    (update :reply-count inc) ; Increment reply count
-    ; Increment the value of each phrase in the map (will start from 0 if non-existant)
-    (update :cloud-counts 
-       #(reduce (fn [m phrase] (update m phrase safe-inc)) % new-clouds))))
+; (defn update-state [old-state new-clouds]
+;   (-> old-state
+;     (update :reply-count inc) ; Increment reply count
+;     ; Increment the value of each phrase in the map (will start from 0 if non-existant)
+;     (update :cloud-counts 
+;        #(reduce (fn [m phrase] (update m phrase safe-inc)) % new-clouds))))
 
-(defn post-clouds [request]
-  (let [new-clouds (get-in request [:body "clouds"])]
-    (prn "new-clouds " new-clouds)
-    (swap! state update-state new-clouds)
+(defn post-phrases [request]
+  (let [group-id (get-in request [:params :group-id])
+        phrases (get-in request [:body "clouds"])]
+    (let [[{response-id :response_id}] (jdbc/insert! db :responses { :group_id group-id })]
+      (jdbc/insert-multi! db :phrases (for [phrase phrases] { :response_id response-id :phrase phrase })))
     (response {})))
 
 
@@ -85,8 +86,8 @@
 
 (defroutes api-routes  
   (POST "/api/groups" [] (wrap-json-response (wrap-json-body create-group)))
-  (GET "/api/state" [] (wrap-json-response (wrap-json-body get-state)))
-  (POST "/api/clouds" [] (wrap-json-response (wrap-json-body post-clouds))))
+  (GET "/api/groups/:group-id" [] (wrap-json-response (wrap-json-body get-counts)))
+  (POST "/api/groups/:group-id" [] (wrap-json-response (wrap-json-body post-phrases))))
 
 (defroutes other-routes
   (resources "/")
