@@ -12,20 +12,19 @@
 (def db {
   :dbtype "postgresql"
   :dbname "weather-check"
-  ;:subname "//127.0.0.1:3306/weather-check"
-  ; :user nil
-  ; :password nil
+  ; :username ""
+  ; :password ""
   })
 
-(jdbc/insert! db :fruit
-  {:name "Apple" :appearance "rosy" :cost 24}
-  {:name "Orange" :appearance "round" :cost 49})
 
 (def state (atom {
                   ; Number of respondants
                   :reply-count 0
                   ; Map of phrases to the number of occurences
                   :cloud-counts {} })) 
+
+
+;;; WEBSITE
 
 (def mount-target
   [:div#app
@@ -48,6 +47,15 @@
      mount-target
      (include-js "/js/app.js")]))
 
+
+;;; API
+
+(defn create-group [request]
+  (let [group-name (get-in request [:params "name"])
+        group-id (apply str (repeatedly 7 #(rand-nth "ABCDEFGHIJKLMOPQRSTUVWXYZ")))]
+    (jdbc/insert! db :groups { :group_id group-id :name group-name })
+    (response {:id group-id})))
+
 (defn get-state [request]
   (response @state))
 
@@ -67,13 +75,17 @@
     (swap! state update-state new-clouds)
     (response {})))
 
+
+;;; ROUTES
+
 (defroutes site-routes
   (GET "/" [] loading-page)
   (GET "/form" [] loading-page)
   (GET "/weather" [] loading-page))
 
-(defroutes api-routes
-  (GET "/api/state" [] (wrap-json-response get-state))
+(defroutes api-routes  
+  (POST "/api/groups" [] (wrap-json-response (wrap-json-body create-group)))
+  (GET "/api/state" [] (wrap-json-response (wrap-json-body get-state)))
   (POST "/api/clouds" [] (wrap-json-response (wrap-json-body post-clouds))))
 
 (defroutes other-routes
