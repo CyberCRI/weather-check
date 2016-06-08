@@ -111,13 +111,15 @@
   (if (>= @counter updates-between-clouds)
     (do 
       (when (>= (count @clouds-off-screen) 2)
-        (let [; Take 2 clouds
+        (let [[canvas-width canvas-height] (canvas-size)
+              canvas-half-height (max 300 (/ 2 (+ canvas-height 300)))
+              ; Take 2 clouds
               [cloud-top cloud-bottom & clouds-rest] @clouds-off-screen
                ; Give them initial positions
               cloud-top-positioned (assoc cloud-top :position [(rand-in-range -450 -500) 
                                                                 (rand-in-range 0 50)])
               cloud-bottom-positioned (assoc cloud-bottom :position [(rand-in-range -450 -500) 
-                                                                      (rand-in-range 300 350)])]
+                                                                      (rand-in-range canvas-half-height (+ 50 canvas-half-height))])]
           (swap! clouds-on-screen concat [cloud-top-positioned cloud-bottom-positioned])
           (reset! clouds-off-screen clouds-rest)))
       (reset! counter 0))
