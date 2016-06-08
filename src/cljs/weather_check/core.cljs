@@ -68,7 +68,7 @@
   ])
 
 (def cloud-speed-x 25)
-(def updates-between-clouds 16)
+(def updates-between-clouds 15)
 
 (defn draw-cloud [{:keys [position phrase importance]} cloud] 
   [:div.cloud {:style {:transform (str "translate(" (first position) "px, " (second position) "px)") 
