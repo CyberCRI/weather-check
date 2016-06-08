@@ -145,21 +145,29 @@
   (swap! clouds-on-screen move-clouds)
   (remove-clouds clouds-off-screen clouds-on-screen))
 
+(defn weather-report [state]
+  (if state
+    (str "Weather from " (:reply-count state) " responses")
+    "Loading weather")) 
+
 (defn weather-page []
   (let [clouds-off-screen (atom [])
         clouds-on-screen (atom [])
         counter (atom updates-between-clouds)
         callback #(update-clouds counter clouds-off-screen clouds-on-screen)
-        interval-id (atom nil)]
+        interval-id (atom nil)
+        server-state (atom {})]
     (GET "/api/state" {:handler (fn [state] 
                                   (js/console.log "ajax reply" (clj->js state))
-                                  (reset! clouds-off-screen (make-clouds (keywordize-keys state))))}) 
+                                  (reset! server-state (keywordize-keys state))
+                                  (reset! clouds-off-screen (make-clouds @server-state)))}) 
     (create-class 
       {:component-did-mount #(reset! interval-id (js/setInterval callback 1000))
        :component-will-unmount #(js/clearInterval @interval-id)
        :reagent-render 
          (fn [] [:div { :id "weather-container" } 
-            [draw-clouds @clouds-on-screen]])})))
+                  [draw-clouds @clouds-on-screen]
+                  [:p.summary (weather-report @server-state)]])})))
 
 (defn current-page []
   [:div [(session/get :current-page)]])

@@ -43,7 +43,6 @@ a:hover {
   overflow: hidden;
 
   background-color: lightblue;
-  color: white;
 }
 
 .cloud {
@@ -52,6 +51,7 @@ a:hover {
   transition-property: transform;
   transition-duration: 1s;
   transition-timing-function: linear;
+  color: white;
 }
 
 .cloud .phrase {
@@ -68,3 +68,9 @@ a:hover {
   text-align: center;
 }
 
+.summary {
+  position: absolute;
+  text-align: center;
+  width: 100%;
+  bottom: 0%;
+}
