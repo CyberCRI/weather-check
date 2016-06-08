@@ -39,20 +39,17 @@
 (def form-template 
   [:div (map-indexed row phrases)])
 
-(defn set-outstanding-request [outstanding-request bool]
-  (swap! outstanding-request #(constantly bool)))
-
 (defn send-clouds [clouds-state outstanding-request]
   (let [index-names (keys (filter #(second %) @clouds-state)) ; Get a list of the keys with true values in the state map 
         phrases (map #(nth phrases (js/parseInt (second (string/split % "-")))) index-names) ; Convert names like "index-1" into the corresponding phrase
         clouds {:clouds phrases} 
         clouds-value (clj->js clouds)]
     (.log js/console clouds-value)
-    (set-outstanding-request outstanding-request true)
+    (reset! outstanding-request true)
     (POST "/api/clouds" {:params clouds-value 
                          :format :json 
                          :handler #(accountant/navigate! "/")
-                         :finally #(set-outstanding-request outstanding-request false)})))
+                         :finally #(reset! outstanding-request false)})))
 
 (defn form-page []
   (let [clouds (atom {})
@@ -67,17 +64,17 @@
 (defrecord Cloud 
   [phrase ; String
    importance ; Number in [0, 1]
-   animating ; Bool
    position ; 2D vector
   ])
 
-(defn draw-cloud [{:keys [animating position phrase importance]} cloud] 
-  [:div {:class (if animating "cloud animating-cloud" "cloud")
-         :style {:transform (str "translate(" (first position) "px, " (second position) "px)") 
-                 :opacity importance}}
+(def cloud-speed-x 25)
+(def updates-between-clouds 16)
+
+(defn draw-cloud [{:keys [position phrase importance]} cloud] 
+  [:div.cloud {:style {:transform (str "translate(" (first position) "px, " (second position) "px)") 
+                       :opacity importance}}
     [:object {:type "image/svg+xml" 
-              :data "/images/cloud.svg"
-              }]
+              :data "/images/cloud.svg"}]
     [:p phrase]])
 
 (defn draw-clouds [clouds] [:div (for [cloud clouds] ^{:key (:phrase cloud)} [draw-cloud cloud])])
@@ -102,44 +99,65 @@
     (prn "indexed-phrases" indexed-phrases)
     (for [{:keys [phrase count index]} indexed-phrases]
       (Cloud. 
-        phrase 
+        (str phrase "\n" (/ count reply-count) "%") 
         ; Importance is the proportional to the % of people who thought it
         (-> count (/ reply-count) (* 2) (clamp 0.5 1))
-        false
-        (assoc (rand-starting-pos canvas-width canvas-height) 0 (* -400 index))))))
+        nil))))
+        ;(assoc (rand-starting-pos canvas-width canvas-height) 0 (* -400 index))))))
 
-(defn update-clouds [clouds]
+(defn add-clouds [counter clouds-off-screen clouds-on-screen]
+  (if (>= @counter updates-between-clouds)
+    (do 
+      (when (>= (count @clouds-off-screen) 2)
+        (let [; Take 2 clouds
+              [cloud-top cloud-bottom & clouds-rest] @clouds-off-screen
+               ; Give them initial positions
+              cloud-top-positioned (assoc cloud-top :position [(rand-in-range -450 -500) 
+                                                                (rand-in-range 0 50)])
+              cloud-bottom-positioned (assoc cloud-bottom :position [(rand-in-range -450 -500) 
+                                                                      (rand-in-range 300 350)])]
+          (swap! clouds-on-screen concat [cloud-top-positioned cloud-bottom-positioned])
+          (reset! clouds-off-screen clouds-rest)))
+      (reset! counter 0))
+    (swap! counter inc)))
+
+(defn remove-clouds [clouds-off-screen clouds-on-screen]
+  ; Separate on-screen into those that should stay and those should go
+  (let [[canvas-width canvas-height] (canvas-size)
+        is-on-screen (fn [{[x y] :position}] (< x canvas-width))
+        { keep-on true take-off false } (group-by is-on-screen @clouds-on-screen)]
+    (swap! clouds-off-screen concat take-off)
+    (reset! clouds-on-screen keep-on)))
+            
+(defn move-clouds [clouds]
   (let [[canvas-width canvas-height] (canvas-size)]
     (for [{[x y] :position :as cloud} clouds]
-      ; TODO: get size of cloud
       (if (> x canvas-width)
         ; If out of canvas, restart on the left
-        (-> cloud
-          (assoc :position (rand-starting-pos canvas-width canvas-height))
-          (assoc :animating false))
+        (assoc cloud :position (rand-starting-pos canvas-width canvas-height))
         ; Otherwise move towards the right with a random vertical 
-        (-> cloud
-          (assoc :position [(+ x 25) (clamp (+ y (rand-in-range -5 5)) 0 canvas-height)])
-          (assoc :animating true))))))
+        (assoc cloud :position [(+ x cloud-speed-x) (clamp (+ y (rand-in-range -5 5)) 0 canvas-height)])))))
+
+(defn update-clouds [counter clouds-off-screen clouds-on-screen]
+  (add-clouds counter clouds-off-screen clouds-on-screen)
+  (swap! clouds-on-screen move-clouds)
+  (remove-clouds clouds-off-screen clouds-on-screen))
 
 (defn weather-page []
-  (let [clouds (atom [])
-        ;clouds (atom [(Cloud. "Hi" 0.5 true [300 100]) (Cloud. "Bye" 0.5 true [100 300])])
-        callback #(swap! clouds update-clouds)
+  (let [clouds-off-screen (atom [])
+        clouds-on-screen (atom [])
+        counter (atom updates-between-clouds)
+        callback #(update-clouds counter clouds-off-screen clouds-on-screen)
         interval-id (atom nil)]
     (GET "/api/state" {:handler (fn [state] 
                                   (js/console.log "ajax reply" (clj->js state))
-                                  (reset! clouds (make-clouds (keywordize-keys state)))
-                                  )}) 
-      ;(reset! clouds (make-clouds state)))
-                       ;})
+                                  (reset! clouds-off-screen (make-clouds (keywordize-keys state))))}) 
     (create-class 
       {:component-did-mount #(reset! interval-id (js/setInterval callback 1000))
        :component-will-unmount #(js/clearInterval @interval-id)
        :reagent-render 
          (fn [] [:div { :id "weather-container" } 
-            [:h2 "Weather"]
-            [draw-clouds @clouds]])})))
+            [draw-clouds @clouds-on-screen]])})))
 
 (defn current-page []
   [:div [(session/get :current-page)]])
