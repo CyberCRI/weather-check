@@ -101,12 +101,16 @@
         indexed-phrases (map-indexed (fn [index [phrase count]] {:phrase (name phrase) :count count :index (+ index 1)}) cloud-counts)]
     (prn "indexed-phrases" indexed-phrases)
     (for [{:keys [phrase count index]} indexed-phrases]
-      (Cloud. 
-        phrase 
-        ; Importance is the proportional to the % of people who thought it
-        (-> count (/ reply-count) (* 2) (clamp 0.5 1))
-        false
-        (assoc (rand-starting-pos canvas-width canvas-height) 0 (* -400 index))))))
+      (let [[y-min y-max] (if (even? index) [0 (* .5 canvas-height)] [(* .5 canvas-height) canvas-height])
+            [x-min x-max] [(* -300 index) (* -600 index)]]
+        (Cloud. 
+          phrase 
+          ; Importance is the proportional to the % of people who thought it
+          (-> count (/ reply-count) (* 2) (clamp 0.5 1))
+          false
+          ; (assoc (rand-starting-pos canvas-width canvas-height) 0 (* -200 index))
+          [(rand-in-range x-min x-max) (rand-in-range y-min y-max)]
+          )))))
 
 (defn update-clouds [clouds]
   (let [[canvas-width canvas-height] (canvas-size)]
