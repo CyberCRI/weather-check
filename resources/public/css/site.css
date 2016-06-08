@@ -53,11 +53,17 @@ a:hover {
   transition-timing-function: linear;
 }
 
-.cloud p {
+.cloud .phrase {
   position: absolute;
   top: 25%;
   width: 100%;
   text-align: center;
 }
 
+.cloud .count {
+  position: absolute;
+  top: 50%;
+  width: 100%;
+  text-align: center;
+}
 

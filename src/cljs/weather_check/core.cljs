@@ -64,18 +64,20 @@
 (defrecord Cloud 
   [phrase ; String
    importance ; Number in [0, 1]
+   percent ; Number in [0, 1]
    position ; 2D vector
   ])
 
 (def cloud-speed-x 25)
 (def updates-between-clouds 15)
 
-(defn draw-cloud [{:keys [position phrase importance]} cloud] 
+(defn draw-cloud [{:keys [position phrase importance percent]} cloud] 
   [:div.cloud {:style {:transform (str "translate(" (first position) "px, " (second position) "px)") 
                        :opacity importance}}
     [:object {:type "image/svg+xml" 
               :data "/images/cloud.svg"}]
-    [:p phrase]])
+    [:p.phrase phrase]
+    [:p.count (str percent "%")]])
 
 (defn draw-clouds [clouds] [:div (for [cloud clouds] ^{:key (:phrase cloud)} [draw-cloud cloud])])
 
@@ -99,11 +101,11 @@
     (prn "indexed-phrases" indexed-phrases)
     (for [{:keys [phrase count index]} indexed-phrases]
       (Cloud. 
-        (str phrase "\n" (/ count reply-count) "%") 
+        phrase 
         ; Importance is the proportional to the % of people who thought it
         (-> count (/ reply-count) (* 2) (clamp 0.5 1))
+        (* 100 (/ count reply-count))
         nil))))
-        ;(assoc (rand-starting-pos canvas-width canvas-height) 0 (* -400 index))))))
 
 (defn add-clouds [counter clouds-off-screen clouds-on-screen]
   (if (>= @counter updates-between-clouds)
