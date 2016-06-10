@@ -13,18 +13,42 @@
 ;; Views
 
 (defn home-page []
-  [:div [:h2 "Welcome to weather check"]])
+  [:div [:h2 "Welcome to weather check"]
+   [:p [:a {:href "/group" } "Make a new group"]]])
 
 (defn thanks-page []
   [:div [:h2 "Thanks for telling us how you feel"]])
 
 (defn create-group-page []
-  [:div [:h2 "Make a new group"]])
+  (let [form-values (atom {})
+        error-message (atom nil)
+        submit (fn []
+                 (POST "/api/groups" 
+                  {:params @form-values 
+                   :format :json 
+                   :handler (fn [post-results] 
+                              (accountant/navigate! (str "/group/" (get post-results "id"))))
+                   :error-handler #(reset! error-message "Error submitting. Please try again later.")}))]
+    [:div [:h2 "Make a new group"]
+     [:div 
+      [bind-fields [:input {:field :text :id :name}] form-values]]
+     [:p.error-message @error-message]
+     [:div
+      [:button {:on-click submit } "Make it"]]])) ;:disabled #(empty (:name @form-values))
 
-(defn group-page [group-id]
-  [:div [:h2 "Group " group-id] 
-   [:p [:a {:href (str "/group/" group-id "/form") } "Tell your feelings"]]
-   [:p [:a {:href (str "/group/" group-id "/weather")} "See the weather"]]])
+(defn group-page [group-id] 
+  (let [name (atom nil)
+        abs-form-url (str (.-href js/location) "/form")]
+    (GET (str "/api/groups/" group-id)
+         {:handler (fn [state] (reset! name (get state "name")))})
+    (fn []
+      [:div [:h2 "Group " @name] 
+       [:ol 
+         [:li "Send the link " 
+          [:a {:href abs-form-url} abs-form-url]
+          " to others to fill in."]
+         [:li "When the time comes, " 
+          [:a {:href (str "/group/" group-id "/weather")} "check out the weather"] "."]]])))
 
 
 ; Form page
@@ -63,7 +87,7 @@
            :error-handler #(reset! error-message "Error submitting. Please try again later.")
            :finally #(reset! outstanding-request false)})))
 
-(defn form-page [group-id]
+(defn form-page [group-id] (fn [] 
   (let [clouds (atom {})
         outstanding-request (atom false)
         error-message (atom nil)]
@@ -72,7 +96,7 @@
        [:p "What have you experienced?"]
        [bind-fields form-template clouds]
        [:p.error-message @error-message]
-       [:button {:on-click #(send-clouds group-id clouds outstanding-request error-message) :disabled @outstanding-request} "Send the Weather"]])))
+       [:button {:on-click #(send-clouds group-id clouds outstanding-request error-message) :disabled @outstanding-request} "Send the Weather"]]))))
 
 ;;;; Weather page
 (defrecord Cloud 
@@ -163,7 +187,7 @@
     (str "Weather from " (:reply-count state) " responses")
     "Loading weather")) 
 
-(defn weather-page [group-id]
+(defn weather-page [group-id] (fn []
   (let [clouds-off-screen (atom [])
         clouds-on-screen (atom [])
         counter (atom updates-between-clouds)
@@ -181,32 +205,33 @@
        :reagent-render 
          (fn [] [:div { :id "weather-container" } 
                   [draw-clouds @clouds-on-screen]
-                  [:p.summary (weather-report @server-state)]])})))
+                  [:p.summary (weather-report @server-state)]])}))))
 
 (defn current-page []
-  (let [f (session/get :current-page)]
-    [:div f]))
+  [:div [(session/get :current-page)]])
+;  (let [f (session/get :current-page)]
+;    [:div f]))
 
 ;; -------------------------
 ;; Routes
 
 (secretary/defroute "/" []
-  (session/put! :current-page [home-page]))
+  (session/put! :current-page #'home-page))
 
 (secretary/defroute "/thanks" []
-  (session/put! :current-page [thanks-page]))
+  (session/put! :current-page #'thanks-page))
 
 (secretary/defroute "/group" []
-  (session/put! :current-page [create-group-page]))
+  (session/put! :current-page #'create-group-page))
 
 (secretary/defroute "/group/:group-id" [group-id]
-  (session/put! :current-page [group-page group-id]))
+  (session/put! :current-page (#'group-page group-id)))
 
-(secretary/defroute group-form "/group/:group-id/form" [group-id]
-  (session/put! :current-page [form-page group-id]))
+(secretary/defroute "/group/:group-id/form" [group-id]
+  (session/put! :current-page (#'form-page group-id)))
 
-(secretary/defroute group-weather "/group/:group-id/weather" [group-id]
-  (session/put! :current-page [weather-page group-id]))
+(secretary/defroute "/group/:group-id/weather" [group-id]
+  (session/put! :current-page (#'weather-page group-id)))
 
 ;; -------------------------
 ;; Initialize app

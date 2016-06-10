@@ -53,6 +53,9 @@
 (defn get-counts [request]
   (let [group-id (get-in request [:params :group-id])
         phrases (get-in request [:body "clouds"])
+        [group-name] (jdbc/query db
+                      ["select name from groups where group_id = ?" group-id]
+                      {:row-fn :name})
         [reply-count] (jdbc/query db
                       ["select count(*) from responses where group_id = ?" group-id]
                       {:row-fn :count})
@@ -61,7 +64,7 @@
                             where phrases.response_id = responses.response_id 
                             and group_id = ? group by phrase;" group-id])
         results-map (reduce (fn [m row] (assoc m (:phrase row) (:count row))) {} rows)]
-    (response { :reply-count reply-count :cloud-counts results-map })))
+    (response { :name group-name :reply-count reply-count :cloud-counts results-map })))
 
 (defn post-phrases [request]
   (let [group-id (get-in request [:params :group-id])
