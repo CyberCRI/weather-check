@@ -8,13 +8,23 @@
               [clojure.string :as string]
               [clojure.walk :refer [keywordize-keys stringify-keys]]))
 
+
 ;; -------------------------
 ;; Views
 
 (defn home-page []
-  [:div [:h2 "Welcome to weather check"]
-   [:div [:a {:href "/form"} "go to form"]]
-   [:div [:a {:href "/weather"} "see the weather"]]])
+  [:div [:h2 "Welcome to weather check"]])
+
+(defn thanks-page []
+  [:div [:h2 "Thanks for telling us how you feel"]])
+
+(defn create-group-page []
+  [:div [:h2 "Make a new group"]])
+
+(defn group-page [group-id]
+  [:div [:h2 "Group " group-id] 
+   [:p [:a {:href (str "/group/" group-id "/form") } "Tell your feelings"]]
+   [:p [:a {:href (str "/group/" group-id "/weather")} "See the weather"]]])
 
 
 ; Form page
@@ -27,38 +37,42 @@
   "I've been looked down on"
   "I'm feeling left out"
   "I've been teased or mocked"
-  "People give me a mean look"
-  ])
+  "People give me a mean look"])
 
 (defn row [index label]
   (let [id (str "index-" index)]
-    [:div 
+    ^{:key index} [:div 
       [:input {:field :checkbox :id id}]
       [:label {:for id} label]]))
 
 (def form-template 
   [:div (map-indexed row phrases)])
 
-(defn send-clouds [clouds-state outstanding-request]
+(defn send-clouds [group-id clouds-state outstanding-request error-message]
   (let [index-names (keys (filter #(second %) @clouds-state)) ; Get a list of the keys with true values in the state map 
         phrases (map #(nth phrases (js/parseInt (second (string/split % "-")))) index-names) ; Convert names like "index-1" into the corresponding phrase
         clouds {:clouds phrases} 
         clouds-value (clj->js clouds)]
     (.log js/console clouds-value)
     (reset! outstanding-request true)
-    (POST "/api/clouds" {:params clouds-value 
-                         :format :json 
-                         :handler #(accountant/navigate! "/")
-                         :finally #(reset! outstanding-request false)})))
+    (prn "group-id" group-id)
+    (POST (str "/api/groups/" group-id) 
+          {:params clouds-value 
+           :format :json 
+           :handler #(accountant/navigate! "/thanks")
+           :error-handler #(reset! error-message "Error submitting. Please try again later.")
+           :finally #(reset! outstanding-request false)})))
 
-(defn form-page []
+(defn form-page [group-id]
   (let [clouds (atom {})
-        outstanding-request (atom false)]
+        outstanding-request (atom false)
+        error-message (atom nil)]
     (fn []
       [:div [:h2 "Tell us about the weather"]
        [:p "What have you experienced?"]
        [bind-fields form-template clouds]
-       [:button {:on-click #(send-clouds clouds outstanding-request) :disabled @outstanding-request} "Send the Weather"]])))
+       [:p.error-message @error-message]
+       [:button {:on-click #(send-clouds group-id clouds outstanding-request error-message) :disabled @outstanding-request} "Send the Weather"]])))
 
 ;;;; Weather page
 (defrecord Cloud 
@@ -104,7 +118,7 @@
         phrase 
         ; Importance is the proportional to the % of people who thought it
         (-> count (/ reply-count) (* 2) (clamp 0.5 1))
-        (* 100 (/ count reply-count))
+        (int (* 100 (/ count reply-count)))
         nil))))
 
 (defn add-clouds [counter clouds-off-screen clouds-on-screen]
@@ -117,9 +131,9 @@
               [cloud-top cloud-bottom & clouds-rest] @clouds-off-screen
                ; Give them initial positions
               cloud-top-positioned (assoc cloud-top :position [(rand-in-range -450 -500) 
-                                                                (rand-in-range 0 50)])
+                                                               (rand-in-range 0 50)])
               cloud-bottom-positioned (assoc cloud-bottom :position [(rand-in-range -450 -500) 
-                                                                      (rand-in-range canvas-half-height (+ 50 canvas-half-height))])]
+                                                                     (rand-in-range canvas-half-height (+ 50 canvas-half-height))])]
           (swap! clouds-on-screen concat [cloud-top-positioned cloud-bottom-positioned])
           (reset! clouds-off-screen clouds-rest)))
       (reset! counter 0))
@@ -128,7 +142,7 @@
 (defn remove-clouds [clouds-off-screen clouds-on-screen]
   ; Separate on-screen into those that should stay and those should go
   (let [[canvas-width canvas-height] (canvas-size)
-        is-on-screen (fn [{[x y] :position}] (< x canvas-width))
+        is-on-screen (fn [{[x y] :position}] (< x (+ canvas-width 50)))
         { keep-on true take-off false } (group-by is-on-screen @clouds-on-screen)]
     (swap! clouds-off-screen concat take-off)
     (reset! clouds-on-screen keep-on)))
@@ -136,11 +150,8 @@
 (defn move-clouds [clouds]
   (let [[canvas-width canvas-height] (canvas-size)]
     (for [{[x y] :position :as cloud} clouds]
-      (if (> x canvas-width)
-        ; If out of canvas, restart on the left
-        (assoc cloud :position (rand-starting-pos canvas-width canvas-height))
-        ; Otherwise move towards the right with a random vertical 
-        (assoc cloud :position [(+ x cloud-speed-x) (clamp (+ y (rand-in-range -5 5)) 0 canvas-height)])))))
+      ; Move towards the right with a random vertical 
+      (assoc cloud :position [(+ x cloud-speed-x) (clamp (+ y (rand-in-range -5 5)) 0 canvas-height)]))))
 
 (defn update-clouds [counter clouds-off-screen clouds-on-screen]
   (add-clouds counter clouds-off-screen clouds-on-screen)
@@ -152,17 +163,18 @@
     (str "Weather from " (:reply-count state) " responses")
     "Loading weather")) 
 
-(defn weather-page []
+(defn weather-page [group-id]
   (let [clouds-off-screen (atom [])
         clouds-on-screen (atom [])
         counter (atom updates-between-clouds)
         callback #(update-clouds counter clouds-off-screen clouds-on-screen)
         interval-id (atom nil)
         server-state (atom {})]
-    (GET "/api/state" {:handler (fn [state] 
-                                  (js/console.log "ajax reply" (clj->js state))
-                                  (reset! server-state (keywordize-keys state))
-                                  (reset! clouds-off-screen (make-clouds @server-state)))}) 
+    (GET (str "/api/groups/" group-id) 
+         {:handler (fn [state] 
+            (js/console.log "ajax reply" (clj->js state))
+            (reset! server-state (keywordize-keys state))
+            (reset! clouds-off-screen (make-clouds @server-state)))}) 
     (create-class 
       {:component-did-mount #(reset! interval-id (js/setInterval callback 1000))
        :component-will-unmount #(js/clearInterval @interval-id)
@@ -172,19 +184,29 @@
                   [:p.summary (weather-report @server-state)]])})))
 
 (defn current-page []
-  [:div [(session/get :current-page)]])
+  (let [f (session/get :current-page)]
+    [:div f]))
 
 ;; -------------------------
 ;; Routes
 
 (secretary/defroute "/" []
-  (session/put! :current-page #'home-page))
+  (session/put! :current-page [home-page]))
 
-(secretary/defroute "/form" []
-  (session/put! :current-page #'form-page))
+(secretary/defroute "/thanks" []
+  (session/put! :current-page [thanks-page]))
 
-(secretary/defroute "/weather" []
-  (session/put! :current-page #'weather-page))
+(secretary/defroute "/group" []
+  (session/put! :current-page [create-group-page]))
+
+(secretary/defroute "/group/:group-id" [group-id]
+  (session/put! :current-page [group-page group-id]))
+
+(secretary/defroute group-form "/group/:group-id/form" [group-id]
+  (session/put! :current-page [form-page group-id]))
+
+(secretary/defroute group-weather "/group/:group-id/weather" [group-id]
+  (session/put! :current-page [weather-page group-id]))
 
 ;; -------------------------
 ;; Initialize app

@@ -2,11 +2,15 @@
   font-family: 'Helvetica Neue', Verdana, Helvetica, Arial, sans-serif;
   max-width: 600px;
   margin: 0 auto;
-  padding-top: 72px;
+  padding-top: 10px;
   -webkit-font-smoothing: antialiased;
   font-size: 1.125em;
   color: #333;
   line-height: 1.5em;
+}
+
+button {
+  font-size: 1.125em;
 }
 
 h1, h2, h3 {
@@ -73,4 +77,8 @@ a:hover {
   text-align: center;
   width: 100%;
   bottom: 0%;
+}
+
+.error-message {
+  color: red;
 }

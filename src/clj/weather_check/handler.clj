@@ -53,12 +53,15 @@
 (defn get-counts [request]
   (let [group-id (get-in request [:params :group-id])
         phrases (get-in request [:body "clouds"])
+        [reply-count] (jdbc/query db
+                      ["select count(*) from responses where group_id = ?" group-id]
+                      {:row-fn :count})
         rows (jdbc/query db ["select phrase, count(*) 
                             from phrases, responses 
                             where phrases.response_id = responses.response_id 
                             and group_id = ? group by phrase;" group-id])
         results-map (reduce (fn [m row] (assoc m (:phrase row) (:count row))) {} rows)]
-    (response results-map)))
+    (response { :reply-count reply-count :cloud-counts results-map })))
 
 (defn post-phrases [request]
   (let [group-id (get-in request [:params :group-id])
@@ -72,10 +75,14 @@
 
 ;;; ROUTES
 
-(defroutes site-routes
-  (GET "/" [] loading-page)
-  (GET "/form" [] loading-page)
-  (GET "/weather" [] loading-page))
+(def cljs-urls ["/" 
+                "/thanks"
+                "/group"
+                "/group/:group-id"
+                "/group/:group-id/form"
+                "/group/:group-id/weather"])
+
+(def site-routes (apply routes (for [url cljs-urls] (GET url [] loading-page))))
 
 (defroutes api-routes  
   (POST "/api/groups" [] (wrap-json-response (wrap-json-body create-group)))
