@@ -17,3 +17,4 @@ CREATE TABLE phrases (
 	response_id int references responses(response_id),
 	phrase varchar(140)
 );
+CREATE INDEX phrase_index ON phrases (phrase);

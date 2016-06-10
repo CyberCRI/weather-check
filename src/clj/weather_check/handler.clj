@@ -57,7 +57,14 @@
     (response {:id group-id})))
 
 (defn get-counts [request]
-  (response @state))
+  (let [group-id (get-in request [:params :group-id])
+        phrases (get-in request [:body "clouds"])
+        rows (jdbc/query db ["select phrase, count(*) 
+                            from phrases, responses 
+                            where phrases.response_id = responses.response_id 
+                            and group_id = ? group by phrase;" group-id])
+        results-map (reduce (fn [m row] (assoc m (:phrase row) (:count row))) {} rows)]
+    (response results-map)))
 
 ; ; If the value exists, calls inc on it, or starts with 1 
 ; (defn safe-inc [x] (inc (or x 0)))
@@ -71,10 +78,12 @@
 
 (defn post-phrases [request]
   (let [group-id (get-in request [:params :group-id])
-        phrases (get-in request [:body "clouds"])]
-    (let [[{response-id :response_id}] (jdbc/insert! db :responses { :group_id group-id })]
-      (jdbc/insert-multi! db :phrases (for [phrase phrases] { :response_id response-id :phrase phrase })))
-    (response {})))
+        phrases (get-in request [:body "clouds"])
+        ; Create response in DB
+        [{response-id :response_id}] (jdbc/insert! db :responses { :group_id group-id })]
+    ; Add phrases to DB
+    (jdbc/insert-multi! db :phrases (for [phrase phrases] { :response_id response-id :phrase phrase })))
+    (response {}))
 
 
 ;;; ROUTES
