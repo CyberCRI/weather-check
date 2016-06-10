@@ -7,16 +7,11 @@
             [ring.middleware.json :refer [wrap-json-response wrap-json-body]]
             [ring.middleware.defaults :refer [site-defaults api-defaults wrap-defaults]]
             [ring.util.response :refer [response]]
-            [clojure.java.jdbc :as jdbc]))
+            [clojure.java.jdbc :as jdbc]
+            [clojure.edn :as edn]))
 
 
-(def db {
-  :dbtype "postgresql"
-  :dbname "weather-check"
-  ; :username ""
-  ; :password ""
-  })
-
+(def db (edn/read-string (slurp "config.clj")))
 
 ;;; WEBSITE
 
