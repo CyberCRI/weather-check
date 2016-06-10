@@ -9,19 +9,13 @@
             [ring.util.response :refer [response]]
             [clojure.java.jdbc :as jdbc]))
 
+
 (def db {
   :dbtype "postgresql"
   :dbname "weather-check"
   ; :username ""
   ; :password ""
   })
-
-
-(def state (atom {
-                  ; Number of respondants
-                  :reply-count 0
-                  ; Map of phrases to the number of occurences
-                  :cloud-counts {} })) 
 
 
 ;;; WEBSITE
@@ -65,16 +59,6 @@
                             and group_id = ? group by phrase;" group-id])
         results-map (reduce (fn [m row] (assoc m (:phrase row) (:count row))) {} rows)]
     (response results-map)))
-
-; ; If the value exists, calls inc on it, or starts with 1 
-; (defn safe-inc [x] (inc (or x 0)))
-
-; (defn update-state [old-state new-clouds]
-;   (-> old-state
-;     (update :reply-count inc) ; Increment reply count
-;     ; Increment the value of each phrase in the map (will start from 0 if non-existant)
-;     (update :cloud-counts 
-;        #(reduce (fn [m phrase] (update m phrase safe-inc)) % new-clouds))))
 
 (defn post-phrases [request]
   (let [group-id (get-in request [:params :group-id])
