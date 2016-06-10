@@ -69,19 +69,22 @@
       [:input {:field :checkbox :id id}]
       [:label {:for id} label]]))
 
-(def form-template 
+(def form-template
   [:div (map-indexed row phrases)])
 
-(defn send-clouds [group-id clouds-state outstanding-request error-message]
+(def other-template 
+  [:div 
+    [:label {:for :other} "Other: "]
+    [:input {:field :text :id :other }]])
+
+(defn send-clouds [group-id clouds-state other outstanding-request error-message]
   (let [index-names (keys (filter #(second %) @clouds-state)) ; Get a list of the keys with true values in the state map 
         phrases (map #(nth phrases (js/parseInt (second (string/split % "-")))) index-names) ; Convert names like "index-1" into the corresponding phrase
-        clouds {:clouds phrases} 
-        clouds-value (clj->js clouds)]
-    (.log js/console clouds-value)
+        clouds {:clouds (if other (conj phrases other) phrases)}]
     (reset! outstanding-request true)
     (prn "group-id" group-id)
     (POST (str "/api/groups/" group-id) 
-          {:params clouds-value 
+          {:params clouds 
            :format :json 
            :handler #(accountant/navigate! "/thanks")
            :error-handler #(reset! error-message "Error submitting. Please try again later.")
@@ -89,14 +92,16 @@
 
 (defn form-page [group-id] (fn [] 
   (let [clouds (atom {})
+        other (atom {})
         outstanding-request (atom false)
         error-message (atom nil)]
     (fn []
       [:div [:h2 "Tell us about the weather"]
        [:p "What have you experienced?"]
        [bind-fields form-template clouds]
+       [bind-fields other-template other]
        [:p.error-message @error-message]
-       [:button {:on-click #(send-clouds group-id clouds outstanding-request error-message) :disabled @outstanding-request} "Send the Weather"]]))))
+       [:button {:on-click #(send-clouds group-id clouds (:other @other) outstanding-request error-message) :disabled @outstanding-request} "Send the Weather"]]))))
 
 ;;;; Weather page
 (defrecord Cloud 
