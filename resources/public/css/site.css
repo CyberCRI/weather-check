@@ -56,6 +56,9 @@ a:hover {
   transition-duration: 1s;
   transition-timing-function: linear;
   color: white;
+
+  width: 390px;
+  height: 250px;
 }
 
 .cloud .phrase {

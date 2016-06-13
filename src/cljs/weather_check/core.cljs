@@ -109,16 +109,17 @@
    importance ; Number in [0, 1]
    percent ; Number in [0, 1]
    position ; 2D vector
+   asset ; String
   ])
 
 (def cloud-speed-x 25)
 (def updates-between-clouds 15)
 
-(defn draw-cloud [{:keys [position phrase importance percent]} cloud] 
+(defn draw-cloud [{:keys [position phrase importance percent asset]} cloud] 
   [:div.cloud {:style {:transform (str "translate(" (first position) "px, " (second position) "px)") 
                        :opacity importance}}
     [:object {:type "image/svg+xml" 
-              :data "/images/cloud.svg"}]
+              :data (str "/images/" asset)}]
     [:p.phrase phrase]
     [:p.count (str percent "%")]])
 
@@ -148,7 +149,8 @@
         ; Importance is the proportional to the % of people who thought it
         (-> count (/ reply-count) (* 2) (clamp 0.5 1))
         (int (* 100 (/ count reply-count)))
-        nil))))
+        nil
+        (str "cloud" (inc (rand-int 4)) ".svg")))))
 
 (defn add-clouds [counter clouds-off-screen clouds-on-screen]
   (if (>= @counter updates-between-clouds)
