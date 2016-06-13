@@ -10,8 +10,12 @@
             [clojure.java.jdbc :as jdbc]
             [clojure.edn :as edn]))
 
+(try
+  (def db (edn/read-string (slurp "config.clj")))
+  (catch Exception e
+    (prn "Can't load config file 'config.clj'. Quitting...")
+    (System/exit 1)))
 
-(def db (edn/read-string (slurp "config.clj")))
 
 ;;; WEBSITE
 
