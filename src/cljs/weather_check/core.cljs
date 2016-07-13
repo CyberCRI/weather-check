@@ -86,23 +86,27 @@
     (POST (str "/api/groups/" group-id) 
           {:params clouds 
            :format :json 
-           :handler #(accountant/navigate! "/thanks")
+           :handler (fn []
+                      (js/localStorage.setItem group-id (js/Date.now))
+                      (accountant/navigate! "/thanks"))
            :error-handler #(reset! error-message "Error submitting. Please try again later.")
            :finally #(reset! outstanding-request false)})))
 
 (defn form-page [group-id] (fn [] 
-  (let [clouds (atom {})
-        other (atom {})
-        outstanding-request (atom false)
-        error-message (atom nil)]
-    (fn []
-      [:div [:h2 "Tell us about the weather"]
-       [:p "What have you experienced?"]
-       [:p [:i "If none of these apply, please just hit the \"Send Weather\" button at the bottom, without checking any boxes."]]
-       [bind-fields form-template clouds]
-       [bind-fields other-template other]
-       [:p.error-message @error-message]
-       [:button {:on-click #(send-clouds group-id clouds (:other @other) outstanding-request error-message) :disabled @outstanding-request} "Send the Weather"]]))))
+  (if (js/localStorage.getItem group-id)
+    (fn [] [:div "You've already filled out the form. Thanks!"])
+    (let [clouds (atom {})
+          other (atom {})
+          outstanding-request (atom false)
+          error-message (atom nil)]
+      (fn []
+        [:div [:h2 "Tell us about the weather"]
+         [:p "What have you experienced?"]
+         [:p [:i "If none of these apply, please just hit the \"Send Weather\" button at the bottom, without checking any boxes."]]
+         [bind-fields form-template clouds]
+         [bind-fields other-template other]
+         [:p.error-message @error-message]
+         [:button {:on-click #(send-clouds group-id clouds (:other @other) outstanding-request error-message) :disabled @outstanding-request} "Send the Weather"]])))))
 
 ;;;; Weather page
 (defrecord Cloud 
