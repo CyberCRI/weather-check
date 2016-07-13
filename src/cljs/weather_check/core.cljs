@@ -98,6 +98,7 @@
     (fn []
       [:div [:h2 "Tell us about the weather"]
        [:p "What have you experienced?"]
+       [:p [:i "If none of these apply, please just hit the \"Send Weather\" button at the bottom, without checking any boxes."]]
        [bind-fields form-template clouds]
        [bind-fields other-template other]
        [:p.error-message @error-message]
